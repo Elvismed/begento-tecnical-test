@@ -1,0 +1,387 @@
+{
+    "info": {
+        "_postman_id": "d9a1c4b7-3f2e-4a58-9c61-7b0e5d2a8f14",
+        "name": "Begento API",
+        "description": "# Begento API\n\nAPI REST para productos, divisas y precios de productos.\n\n## Requisitos\n\n1. `php artisan migrate:fresh --seed`\n2. `php artisan serve`\n3. Base URL: `http://localhost:8000/api`\n\n## Variables de la colección\n\n- `baseUrl`: `http://localhost:8000/api`\n- `currencyId`: `1` (USD creado por el seeder)\n- `priceCurrencyId`: `2` (EUR, usado para el precio adicional)\n- `productId`: se asigna automáticamente al ejecutar **Crear producto**\n\n## Notas\n\n- Todas las respuestas son JSON.\n- Los errores de validación devuelven `422` con `message` y `errors`.\n- Al crear un producto se registra automáticamente su precio base en `product_prices` con la divisa y el precio del producto.\n- El seeder incluye 15 divisas: USD, EUR, GBP, JPY, CNY, CHF, CAD, AUD, BRL, MXN, COP, ARS, CLP, PEN e INR.\n- Un producto solo puede tener un precio por divisa.\n- La colección se ejecuta de principio a fin: productos → precios → eliminación del producto.",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "item": [
+        {
+            "name": "Productos",
+            "description": "CRUD de productos y sus precios. Ejecuta las solicitudes en orden: **Crear producto** antes de **Obtener producto**, **Actualizar producto**, **Precios de productos** y **Eliminar producto**.",
+            "item": [
+                {
+                    "name": "Listar productos",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status 200', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "pm.test('Devuelve un arreglo data', function () {",
+                                    "    pm.expect(pm.response.json().data).to.be.an('array');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/products",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "products"
+                            ]
+                        },
+                        "description": "GET `/products`\n\nDevuelve todos los productos ordenados por `id`, incluyendo su divisa.\n\n**Respuesta 200**\n\n```json\n{\n  \"data\": [\n    {\n      \"id\": 1,\n      \"name\": \"Teclado mecánico\",\n      \"description\": \"Teclado con switches táctiles\",\n      \"price\": 99.99,\n      \"currency_id\": 1,\n      \"tax_cost\": 16,\n      \"manufacturing_cost\": 40,\n      \"currency\": {\n        \"id\": 1,\n        \"name\": \"USD\",\n        \"symbol\": \"$\",\n        \"exchange_rate\": 1\n      }\n    }\n  ]\n}\n```"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Crear producto",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status 201', function () {",
+                                    "    pm.response.to.have.status(201);",
+                                    "});",
+                                    "",
+                                    "const body = pm.response.json();",
+                                    "pm.collectionVariables.set('productId', body.data.id);",
+                                    "",
+                                    "pm.test('Guarda el id del producto creado', function () {",
+                                    "    pm.expect(body.data.id).to.be.a('number');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"Teclado mecánico\",\n  \"description\": \"Teclado con switches táctiles\",\n  \"price\": 99.99,\n  \"currency_id\": {{currencyId}},\n  \"tax_cost\": 16.00,\n  \"manufacturing_cost\": 40.00\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/products",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "products"
+                            ]
+                        },
+                        "description": "POST `/products`\n\nCrea un producto y registra automáticamente su precio base en `product_prices` usando el `currency_id` y el `price` enviados.\n\n**Reglas de validación**\n\n| Campo | Regla |\n| --- | --- |\n| `name` | requerido, string, máximo 255 |\n| `description` | requerido, string |\n| `price` | requerido, numérico, mínimo 0 |\n| `currency_id` | requerido, entero, debe existir en `currencies` |\n| `tax_cost` | requerido, numérico, mínimo 0 |\n| `manufacturing_cost` | requerido, numérico, mínimo 0 |\n\nGuarda el `id` creado en la variable `productId`.\n\n**Respuesta 201**\n\n```json\n{\n  \"data\": {\n    \"id\": 1,\n    \"name\": \"Teclado mecánico\",\n    \"description\": \"Teclado con switches táctiles\",\n    \"price\": 99.99,\n    \"currency_id\": 1,\n    \"tax_cost\": 16,\n    \"manufacturing_cost\": 40,\n    \"currency\": { \"id\": 1, \"name\": \"USD\", \"symbol\": \"$\", \"exchange_rate\": 1 }\n  }\n}\n```\n\n**Error 422** cuando un campo no cumple las reglas."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Obtener producto",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status 200', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "pm.test('El id coincide con productId', function () {",
+                                    "    pm.expect(String(pm.response.json().data.id)).to.eql(pm.collectionVariables.get('productId'));",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/products/{{productId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "products",
+                                "{{productId}}"
+                            ]
+                        },
+                        "description": "GET `/products/{id}`\n\nObtiene un producto por su `id`.\n\n- **200**: producto encontrado.\n- **404**: `{\"message\": \"Resource not found.\"}`."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Actualizar producto",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status 200', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "pm.test('Actualiza el nombre', function () {",
+                                    "    pm.expect(pm.response.json().data.name).to.eql('Teclado mecánico actualizado');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "PUT",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"name\": \"Teclado mecánico actualizado\",\n  \"description\": \"Teclado con switches lineales\",\n  \"price\": 129.99,\n  \"currency_id\": {{currencyId}},\n  \"tax_cost\": 20.00,\n  \"manufacturing_cost\": 45.00\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/products/{{productId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "products",
+                                "{{productId}}"
+                            ]
+                        },
+                        "description": "PUT `/products/{id}`\n\nActualiza un producto. También se acepta `PATCH` y se permiten campos parciales. El precio base del producto (la fila de `product_prices` de su divisa actual) se mantiene sincronizado con `price` y `currency_id`.\n\n**Reglas de validación** (las mismas de creación, con `sometimes`)\n\n| Campo | Regla |\n| --- | --- |\n| `name` | a veces, requerido, string, máximo 255 |\n| `description` | a veces, requerido, string |\n| `price` | a veces, requerido, numérico, mínimo 0 |\n| `currency_id` | a veces, requerido, entero, debe existir en `currencies` |\n| `tax_cost` | a veces, requerido, numérico, mínimo 0 |\n| `manufacturing_cost` | a veces, requerido, numérico, mínimo 0 |\n\n- **200**: producto actualizado.\n- **404**: producto inexistente.\n- **422**: datos inválidos."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Precios de productos",
+                    "description": "Precios por divisa de un producto. Requiere la variable `productId`, asignada al ejecutar **Crear producto**.",
+                    "item": [
+                        {
+                            "name": "Listar precios del producto",
+                            "event": [
+                                {
+                                    "listen": "test",
+                                    "script": {
+                                        "type": "text/javascript",
+                                        "exec": [
+                                            "pm.test('Status 200', function () {",
+                                            "    pm.response.to.have.status(200);",
+                                            "});",
+                                            "",
+                                            "pm.test('Devuelve un arreglo data', function () {",
+                                            "    pm.expect(pm.response.json().data).to.be.an('array');",
+                                            "});",
+                                            "",
+                                            "pm.test('Incluye el precio base del producto', function () {",
+                                            "    const basePrice = pm.response.json().data.find(function (price) {",
+                                            "        return String(price.currency_id) === pm.collectionVariables.get('currencyId');",
+                                            "    });",
+                                            "    pm.expect(basePrice).to.not.be.undefined;",
+                                            "    pm.expect(basePrice.price).to.be.a('number');",
+                                            "});"
+                                        ]
+                                    }
+                                }
+                            ],
+                            "request": {
+                                "method": "GET",
+                                "header": [
+                                    {
+                                        "key": "Accept",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "{{baseUrl}}/products/{{productId}}/prices",
+                                    "host": [
+                                        "{{baseUrl}}"
+                                    ],
+                                    "path": [
+                                        "products",
+                                        "{{productId}}",
+                                        "prices"
+                                    ]
+                                },
+                                "description": "GET `/products/{id}/prices`\n\nLista los precios del producto, ordenados por `id` e incluyendo su divisa. El producto recién creado ya incluye su precio base, registrado automáticamente con la divisa y el precio del producto. Ejecútala después de **Crear producto**.\n\n- **200**: `{\"data\": [...]}`\n- **404**: producto inexistente."
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Crear precio del producto",
+                            "event": [
+                                {
+                                    "listen": "test",
+                                    "script": {
+                                        "type": "text/javascript",
+                                        "exec": [
+                                            "pm.test('Status 201', function () {",
+                                            "    pm.response.to.have.status(201);",
+                                            "});",
+                                            "",
+                                            "const body = pm.response.json();",
+                                            "pm.test('El precio pertenece al producto', function () {",
+                                            "    pm.expect(String(body.data.product_id)).to.eql(pm.collectionVariables.get('productId'));",
+                                            "});",
+                                            "pm.test('El precio usa la divisa adicional', function () {",
+                                            "    pm.expect(String(body.data.currency_id)).to.eql(pm.collectionVariables.get('priceCurrencyId'));",
+                                            "});"
+                                        ]
+                                    }
+                                }
+                            ],
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Accept",
+                                        "value": "application/json"
+                                    },
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n  \"currency_id\": {{priceCurrencyId}},\n  \"price\": 129.99\n}",
+                                    "options": {
+                                        "raw": {
+                                            "language": "json"
+                                        }
+                                    }
+                                },
+                                "url": {
+                                    "raw": "{{baseUrl}}/products/{{productId}}/prices",
+                                    "host": [
+                                        "{{baseUrl}}"
+                                    ],
+                                    "path": [
+                                        "products",
+                                        "{{productId}}",
+                                        "prices"
+                                    ]
+                                },
+                                "description": "POST `/products/{id}/prices`\n\nCrea un precio adicional para el producto en otra divisa. La divisa base del producto ya tiene su precio (creado junto con el producto), por eso este ejemplo usa `priceCurrencyId` (EUR).\n\n**Reglas de validación**\n\n| Campo | Regla |\n| --- | --- |\n| `currency_id` | requerido, entero, debe existir en `currencies` y no puede repetirse para el mismo producto |\n| `price` | requerido, numérico, mínimo 0 |\n\n- **201**: precio creado.\n- **404**: producto inexistente.\n- **422**: datos inválidos o divisa duplicada.\n\n**Respuesta 201**\n\n```json\n{\n  \"data\": {\n    \"id\": 2,\n    \"product_id\": 1,\n    \"currency_id\": 2,\n    \"price\": 129.99,\n    \"currency\": { \"id\": 2, \"name\": \"EUR\", \"symbol\": \"€\", \"exchange_rate\": 0.92 }\n  }\n}\n```"
+                            },
+                            "response": []
+                        }
+                    ]
+                },
+                {
+                    "name": "Eliminar producto",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status 200', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "pm.test('Mensaje de confirmación', function () {",
+                                    "    pm.expect(pm.response.json().message).to.eql('Product deleted successfully.');",
+                                    "});",
+                                    "",
+                                    "pm.collectionVariables.unset('productId');"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "DELETE",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/products/{{productId}}",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "products",
+                                "{{productId}}"
+                            ]
+                        },
+                        "description": "DELETE `/products/{id}`\n\nElimina el producto y, en cascada, todos sus precios. Se deja al final de la carpeta **Productos**, después de las pruebas de precios, para no invalidar `productId`.\n\n**Respuesta 200**\n\n```json\n{\n  \"message\": \"Product deleted successfully.\"\n}\n```\n\n- **404**: producto inexistente."
+                    },
+                    "response": []
+                }
+            ]
+        }
+    ],
+    "variable": [
+        {
+            "key": "baseUrl",
+            "value": "http://localhost:8000/api",
+            "type": "string"
+        },
+        {
+            "key": "currencyId",
+            "value": "1",
+            "type": "string"
+        },
+        {
+            "key": "priceCurrencyId",
+            "value": "2",
+            "type": "string"
+        },
+        {
+            "key": "productId",
+            "value": "",
+            "type": "string"
+        }
+    ]
+}

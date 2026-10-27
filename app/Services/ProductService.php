@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Product;
 use App\Models\ProductPrice;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\DB;
 
 class ProductService
 {
@@ -24,7 +25,13 @@ class ProductService
      */
     public function create(array $data): Product
     {
-        $product = Product::query()->create($data);
+        $product = DB::transaction(function () use ($data): Product {
+            $product = Product::query()->create($data);
+
+            $this->syncBasePrice($product);
+
+            return $product;
+        });
 
         return $product->load('currency');
     }
@@ -39,7 +46,11 @@ class ProductService
      */
     public function update(Product $product, array $data): Product
     {
-        $product->update($data);
+        DB::transaction(function () use ($product, $data): void {
+            $product->update($data);
+
+            $this->syncBasePrice($product);
+        });
 
         return $product->load('currency');
     }
@@ -68,5 +79,16 @@ class ProductService
         $price = $product->prices()->create($data);
 
         return $price->load('currency');
+    }
+
+    /**
+     * Keep the product's own currency price aligned with its base price.
+     */
+    private function syncBasePrice(Product $product): void
+    {
+        $product->prices()->updateOrCreate(
+            ['currency_id' => $product->currency_id],
+            ['price' => $product->price],
+        );
     }
 }

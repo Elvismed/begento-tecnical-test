@@ -51,6 +51,36 @@ class ProductControllerTest extends TestCase
         ]);
     }
 
+    public function test_creates_base_price_for_product_currency_on_creation(): void
+    {
+        $currency = Currency::factory()->create();
+
+        $response = $this->postJson('/api/products', [
+            'name' => 'Keyboard',
+            'description' => 'Mechanical keyboard',
+            'price' => 99.99,
+            'currency_id' => $currency->id,
+            'tax_cost' => 16.00,
+            'manufacturing_cost' => 40.00,
+        ]);
+
+        $response->assertCreated();
+
+        $productId = $response->json('data.id');
+
+        $this->assertDatabaseHas('product_prices', [
+            'product_id' => $productId,
+            'currency_id' => $currency->id,
+            'price' => 99.99,
+        ]);
+
+        $this->getJson("/api/products/{$productId}/prices")
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.currency_id', $currency->id)
+            ->assertJsonPath('data.0.price', 99.99);
+    }
+
     public function test_rejects_invalid_product_payload_with_422(): void
     {
         $response = $this->postJson('/api/products', []);
@@ -132,6 +162,59 @@ class ProductControllerTest extends TestCase
             'name' => 'Updated keyboard',
             'currency_id' => $newCurrency->id,
         ]);
+    }
+
+    public function test_updating_product_price_updates_its_base_price(): void
+    {
+        $currency = Currency::factory()->create();
+        $product = Product::factory()->for($currency)->create(['price' => 100.00]);
+        $product->prices()->create([
+            'currency_id' => $currency->id,
+            'price' => 100.00,
+        ]);
+
+        $this->putJson("/api/products/{$product->id}", [
+            'price' => 150.50,
+        ])->assertOk()
+            ->assertJsonPath('data.price', 150.5);
+
+        $this->assertDatabaseHas('product_prices', [
+            'product_id' => $product->id,
+            'currency_id' => $currency->id,
+            'price' => 150.50,
+        ]);
+
+        $this->assertDatabaseCount('product_prices', 1);
+    }
+
+    public function test_updating_product_currency_creates_base_price_for_new_currency(): void
+    {
+        $usd = Currency::factory()->create();
+        $eur = Currency::factory()->create();
+        $product = Product::factory()->for($usd)->create(['price' => 100.00]);
+        $product->prices()->create([
+            'currency_id' => $usd->id,
+            'price' => 100.00,
+        ]);
+
+        $this->putJson("/api/products/{$product->id}", [
+            'currency_id' => $eur->id,
+        ])->assertOk()
+            ->assertJsonPath('data.currency_id', $eur->id);
+
+        $this->assertDatabaseHas('product_prices', [
+            'product_id' => $product->id,
+            'currency_id' => $eur->id,
+            'price' => 100.00,
+        ]);
+
+        $this->assertDatabaseHas('product_prices', [
+            'product_id' => $product->id,
+            'currency_id' => $usd->id,
+            'price' => 100.00,
+        ]);
+
+        $this->assertDatabaseCount('product_prices', 2);
     }
 
     public function test_rejects_invalid_update_payload_with_422(): void
