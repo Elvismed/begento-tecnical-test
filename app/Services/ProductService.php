@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Product;
+use App\Models\ProductPrice;
 use Illuminate\Database\Eloquent\Collection;
 
 class ProductService
@@ -46,5 +47,26 @@ class ProductService
     public function delete(Product $product): void
     {
         $product->delete();
+    }
+
+    /**
+     * @return Collection<int, ProductPrice>
+     */
+    public function listPrices(Product $product): Collection
+    {
+        return $product->prices()
+            ->with('currency')
+            ->orderBy('id')
+            ->get();
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    public function createPrice(Product $product, array $data): ProductPrice
+    {
+        $price = $product->prices()->create($data);
+
+        return $price->load('currency');
     }
 }
