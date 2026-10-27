@@ -5,12 +5,21 @@ namespace Tests\Feature\Api;
 use App\Models\Currency;
 use App\Models\Product;
 use App\Models\ProductPrice;
+use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class ProductPriceControllerTest extends TestCase
 {
     use LazilyRefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Sanctum::actingAs(User::factory()->create());
+    }
 
     public function test_returns_prices_for_product_ordered_by_id(): void
     {
@@ -177,5 +186,14 @@ class ProductPriceControllerTest extends TestCase
         $this->deleteJson("/api/products/{$product->id}")->assertOk();
 
         $this->assertModelMissing($price);
+    }
+
+    public function test_requires_authentication(): void
+    {
+        $this->app['auth']->forgetGuards();
+
+        $this->getJson('/api/products/1/prices')
+            ->assertUnauthorized()
+            ->assertJsonPath('message', 'Unauthenticated.');
     }
 }

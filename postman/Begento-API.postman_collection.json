@@ -2,13 +2,135 @@
     "info": {
         "_postman_id": "d9a1c4b7-3f2e-4a58-9c61-7b0e5d2a8f14",
         "name": "Begento API",
-        "description": "# Begento API\n\nAPI REST para productos, divisas y precios de productos.\n\n## Requisitos\n\n1. `php artisan migrate:fresh --seed`\n2. `php artisan serve`\n3. Base URL: `http://localhost:8000/api`\n\n## Variables de la colección\n\n- `baseUrl`: `http://localhost:8000/api`\n- `currencyId`: `1` (USD creado por el seeder)\n- `priceCurrencyId`: `2` (EUR, usado para el precio adicional)\n- `productId`: se asigna automáticamente al ejecutar **Crear producto**\n\n## Notas\n\n- Todas las respuestas son JSON.\n- Los errores de validación devuelven `422` con `message` y `errors`.\n- Al crear un producto se registra automáticamente su precio base en `product_prices` con la divisa y el precio del producto.\n- El seeder incluye 15 divisas: USD, EUR, GBP, JPY, CNY, CHF, CAD, AUD, BRL, MXN, COP, ARS, CLP, PEN e INR.\n- Un producto solo puede tener un precio por divisa.\n- La colección se ejecuta de principio a fin: productos → precios → eliminación del producto.",
+        "description": "# Begento API\n\nAPI REST para productos, divisas y precios de productos.\n\n## Requisitos\n\n1. `php artisan migrate:fresh --seed`\n2. `php artisan serve`\n3. Base URL: `http://localhost:8000/api`\n\n## Autenticación\n\nTodas las solicitudes de productos y precios requieren un token Bearer.\n\n1. Ejecuta **Autenticación → Obtener token**.\n2. El token se guarda automáticamente en `accessToken`.\n3. La colección lo envía como `Authorization: Bearer {{accessToken}}`.\n\nCredenciales del seed: `admin@begento.test` / `password`.\n\n## Variables de la colección\n\n- `baseUrl`: `http://localhost:8000/api`\n- `authEmail`: `admin@begento.test`\n- `authPassword`: `password`\n- `accessToken`: se asigna al ejecutar **Obtener token**\n- `currencyId`: `1` (USD creado por el seeder)\n- `priceCurrencyId`: `2` (EUR, usado para el precio adicional)\n- `productId`: se asigna automáticamente al ejecutar **Crear producto**\n\n## Notas\n\n- Todas las respuestas son JSON.\n- Sin token, las rutas protegidas devuelven `401`.\n- Los errores de validación devuelven `422` con `message` y `errors`.\n- Al crear un producto se registra automáticamente su precio base en `product_prices` con la divisa y el precio del producto.\n- El seeder incluye 15 divisas: USD, EUR, GBP, JPY, CNY, CHF, CAD, AUD, BRL, MXN, COP, ARS, CLP, PEN e INR.\n- Un producto solo puede tener un precio por divisa.\n- La colección se ejecuta de principio a fin: autenticación → productos → precios → eliminación del producto.",
         "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "auth": {
+        "type": "bearer",
+        "bearer": [
+            {
+                "key": "token",
+                "value": "{{accessToken}}",
+                "type": "string"
+            }
+        ]
     },
     "item": [
         {
+            "name": "Autenticación",
+            "description": "Obtiene un token Sanctum y lo guarda en la variable `accessToken`. Ejecuta **Obtener token** antes que las solicitudes de **Productos**: todas requieren `Authorization: Bearer {{accessToken}}`.",
+            "item": [
+                {
+                    "name": "Obtener token",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status 200', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "const body = pm.response.json();",
+                                    "pm.collectionVariables.set('accessToken', body.token);",
+                                    "",
+                                    "pm.test('Guarda el token de acceso', function () {",
+                                    "    pm.expect(body.token).to.be.a('string');",
+                                    "    pm.expect(body.token.length).to.be.above(0);",
+                                    "});",
+                                    "",
+                                    "pm.test('Tipo Bearer', function () {",
+                                    "    pm.expect(body.token_type).to.eql('Bearer');",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "auth": {
+                            "type": "noauth"
+                        },
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            },
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"email\": \"{{authEmail}}\",\n  \"password\": \"{{authPassword}}\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{baseUrl}}/auth/token",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "auth",
+                                "token"
+                            ]
+                        },
+                        "description": "POST `/auth/token`\n\nValida las credenciales del usuario seed y emite un token Sanctum.\n\n**Credenciales por defecto**\n\n- Email: `admin@begento.test`\n- Password: `password`\n\n- **200**: `{\"token\": \"1|...\", \"token_type\": \"Bearer\"}`\n- **401**: `{\"message\": \"Invalid credentials.\"}`\n- **422**: datos inválidos\n- **429**: demasiados intentos (5 por minuto)\n\nEl token expira en 7 días y usa el prefijo `begento_`."
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Mis datos",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "type": "text/javascript",
+                                "exec": [
+                                    "pm.test('Status 200', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});",
+                                    "",
+                                    "pm.test('Devuelve el usuario autenticado', function () {",
+                                    "    pm.expect(pm.response.json().data.email).to.eql(pm.collectionVariables.get('authEmail'));",
+                                    "});"
+                                ]
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "application/json"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{baseUrl}}/auth/me",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "auth",
+                                "me"
+                            ]
+                        },
+                        "description": "GET `/auth/me`\n\nDevuelve el usuario asociado al token enviado en `Authorization: Bearer {{accessToken}}`.\n\n- **200**: datos del usuario\n- **401**: token ausente, inválido o expirado"
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
             "name": "Productos",
-            "description": "CRUD de productos y sus precios. Ejecuta las solicitudes en orden: **Crear producto** antes de **Obtener producto**, **Actualizar producto**, **Precios de productos** y **Eliminar producto**.",
+            "description": "CRUD de productos y sus precios. Requiere el token obtenido en **Autenticación**. Ejecuta las solicitudes en orden: **Crear producto** antes de **Obtener producto**, **Actualizar producto**, **Precios de productos** y **Eliminar producto**.",
             "item": [
                 {
                     "name": "Listar productos",
@@ -366,6 +488,21 @@
         {
             "key": "baseUrl",
             "value": "http://localhost:8000/api",
+            "type": "string"
+        },
+        {
+            "key": "authEmail",
+            "value": "admin@begento.test",
+            "type": "string"
+        },
+        {
+            "key": "authPassword",
+            "value": "password",
+            "type": "string"
+        },
+        {
+            "key": "accessToken",
+            "value": "",
             "type": "string"
         },
         {
